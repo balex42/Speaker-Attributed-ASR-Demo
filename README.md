@@ -105,9 +105,44 @@ podman run --rm -it \
 
 ---
 
+## Kubernetes Deployment (Helm)
+
+A Helm chart is included in [`charts/speaker-attributed-asr-demo`](./charts/speaker-attributed-asr-demo). By default, it deploys the image built by GitHub Actions (`ghcr.io/balex42/speaker-attributed-asr-demo:latest`) and creates a `10Gi` PersistentVolumeClaim mounted at `/cache` so the Hugging Face and NeMo checkpoints persist across pod restarts.
+
+### 1. Install on CPU Cluster
+
+```bash
+helm upgrade --install asr-demo ./charts/speaker-attributed-asr-demo \
+  --namespace asr-demo \
+  --create-namespace
+```
+
+Access the UI locally via port-forward:
+
+```bash
+kubectl -n asr-demo port-forward svc/asr-demo-speaker-attributed-asr-demo 7860:7860
+```
+
+Then open **http://127.0.0.1:7860**.
+
+### 2. Install with NVIDIA GPU + Preloaded Models
+
+```bash
+helm upgrade --install asr-demo ./charts/speaker-attributed-asr-demo \
+  --namespace asr-demo \
+  --create-namespace \
+  --set gpu.enabled=true \
+  --set gpu.count=1 \
+  --set app.preloadModels=true
+```
+
+---
+
 ## Project Structure
 
-- `Containerfile` & `.containerignore`: Container build definition for Podman / Docker.
+- `.github/workflows/container.yml`: GitHub Actions workflow that runs unit tests and builds/pushes the container image to `ghcr.io/balex42/speaker-attributed-asr-demo`.
+- `charts/speaker-attributed-asr-demo/`: Helm chart (`Deployment`, `Service`, `PersistentVolumeClaim`, `Ingress`) for Kubernetes deployment.
+- `Containerfile` & `.containerignore`: Container build definition based on `cgr.dev/chainguard/wolfi-base:latest`.
 - `pipeline.py`: Core `DiarizationASRPipeline` class, 16 kHz mono audio preprocessing, Sortformer diarization segment parser, Parakeet word-timestamp extractor, word-to-speaker overlap alignment algorithm, and `.md` / `.srt` / `.rttm` / `.json` exporters.
 - `app.py`: Gradio Web UI (with HTML swimlane timeline, speaker analytics table, and export tabs) and CLI entrypoint.
 - `tests/test_alignment.py`: Unit tests for segment parsing, word-to-speaker alignment, overlap detection, and export formatting.

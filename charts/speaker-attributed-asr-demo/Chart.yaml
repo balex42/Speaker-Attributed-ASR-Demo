@@ -1,0 +1,17 @@
+apiVersion: v2
+name: speaker-attributed-asr-demo
+description: Helm chart for the NVIDIA Nemotron-3-Diarization + Parakeet-TDT-0.6B-v3 Speaker-Attributed ASR Web UI
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - nvidia
+  - nemo
+  - diarization
+  - asr
+  - parakeet
+  - nemotron
+  - gradio
+home: https://github.com/balex42/Speaker-Attributed-ASR-Demo
+sources:
+  - https://github.com/balex42/Speaker-Attributed-ASR-Demo

@@ -1,0 +1,78 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/balex42/speaker-attributed-asr-demo
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Application runtime options passed to app.py
+app:
+  # Set to true to download and load both Hugging Face models at container startup
+  preloadModels: false
+  # Optional explicit device override ("cuda" or "cpu"); leave empty for auto-detection
+  device: ""
+  # Optional Hugging Face token secret reference for higher rate limits
+  hfTokenSecret:
+    name: ""
+    key: "HF_TOKEN"
+
+# Persistent storage for caching Hugging Face & NeMo models (/cache)
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# Optional NVIDIA GPU scheduling settings
+gpu:
+  enabled: false
+  count: 1
+  runtimeClassName: ""
+
+service:
+  type: ClusterIP
+  port: 7860
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+  hosts:
+    - host: asr-demo.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+podAnnotations: {}
+podLabels: {}
+
+# Matches the Wolfi nonroot user (UID 65532) in Containerfile
+podSecurityContext:
+  fsGroup: 65532
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  allowPrivilegeEscalation: false
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "4Gi"
+  limits:
+    cpu: "4000m"
+    memory: "12Gi"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

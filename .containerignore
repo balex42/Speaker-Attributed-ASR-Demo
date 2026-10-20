@@ -1,4 +1,6 @@
 .git
+.github
+charts
 .venv
 venv
 __pycache__
