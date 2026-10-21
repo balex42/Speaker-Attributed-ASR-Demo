@@ -11,8 +11,14 @@ fullnameOverride: ""
 
 # Application runtime options passed to app.py
 app:
-  # Set to true to download and load both Hugging Face models at container startup
+  # Set to true to load both baked Hugging Face models at container startup
   preloadModels: false
+  # Default spoken language ISO code for nvidia/canary-1b-v2 (e.g. "de", "en", "fr", "es")
+  language: "de"
+  # Default ASR batch size (chunks per inference pass; 1 minimizes CPU RAM usage)
+  batchSize: 1
+  # Maximum ASR chunk duration in seconds before splitting at silence gaps
+  maxChunkSec: 30
   # Optional explicit device override ("cuda" or "cpu"); leave empty for auto-detection
   device: ""
   # Optional Hugging Face token secret reference for higher rate limits
@@ -20,9 +26,10 @@ app:
     name: ""
     key: "HF_TOKEN"
 
-# Persistent storage for caching Hugging Face & NeMo models (/cache)
+# Persistent storage for caching additional models (/cache).
+# Disabled by default since Nemotron-3-Diarization and canary-1b-v2 are baked into /app/models/huggingface.
 persistence:
-  enabled: true
+  enabled: false
   existingClaim: ""
   storageClass: ""
   accessModes:

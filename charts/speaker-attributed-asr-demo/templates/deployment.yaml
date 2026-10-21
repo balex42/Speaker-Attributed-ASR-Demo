@@ -43,6 +43,12 @@ spec:
             - "0.0.0.0"
             - "--port"
             - "7860"
+            - "--language"
+            - {{ .Values.app.language | default "de" | quote }}
+            - "--batch-size"
+            - {{ .Values.app.batchSize | default 1 | toString | quote }}
+            - "--max-chunk-sec"
+            - {{ .Values.app.maxChunkSec | default 30 | toString | quote }}
             {{- if .Values.app.preloadModels }}
             - "--preload"
             {{- end }}
@@ -55,8 +61,14 @@ spec:
               value: "0.0.0.0"
             - name: GRADIO_SERVER_PORT
               value: "7860"
+            - name: ASR_LANGUAGE
+              value: {{ .Values.app.language | default "de" | quote }}
+            - name: ASR_BATCH_SIZE
+              value: {{ .Values.app.batchSize | default 1 | toString | quote }}
+            - name: ASR_MAX_CHUNK_SEC
+              value: {{ .Values.app.maxChunkSec | default 30 | toString | quote }}
             - name: HF_HOME
-              value: "/cache/huggingface"
+              value: {{ if .Values.persistence.enabled }}"/cache/huggingface"{{ else }}"/app/models/huggingface"{{ end }}
             - name: TORCH_HOME
               value: "/cache/torch"
             - name: NEMO_CACHE_DIR

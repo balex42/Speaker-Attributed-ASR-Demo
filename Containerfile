@@ -47,8 +47,24 @@ RUN SITE_PKGS=$(/app/venv/bin/python -c "import site; print(site.getsitepackages
     && rm -rf /tmp/NeMo \
     && /app/venv/bin/python -c "import pathlib, nemo.collections.asr as nemo_asr; from nemo.collections.asr.models import SortformerEncLabelModel, ASRModel; from nemo.collections.asr.modules import transformer_encoder as te; assert 'rope' in pathlib.Path(te.__file__).read_text(); print('Verified NeMo ASR + Sortformer + RoPE TransformerEncoder!')"
 
-# Copy application source
-COPY pipeline.py app.py pyproject.toml README.md /app/
+# Bake both NVIDIA models into /app/models/huggingface so the image runs out-of-the-box without cold-start downloads
+ENV HF_HOME=/app/models/huggingface
+RUN mkdir -p /app/models/huggingface \
+    && /app/venv/bin/python -c "\
+from huggingface_hub import hf_hub_download; \
+p1 = hf_hub_download(repo_id='nvidia/Nemotron-3-Diarization', filename='Nemotron-3-Diarization.nemo'); \
+print('Baked diarization model:', p1); \
+p2 = hf_hub_download(repo_id='nvidia/canary-1b-v2', filename='canary-1b-v2.nemo'); \
+print('Baked ASR model:', p2)"
+
+LABEL org.opencontainers.image.licenses="Apache-2.0 AND OpenMDW-1.1 AND CC-BY-4.0"
+
+ENV ASR_LANGUAGE=de \
+    ASR_BATCH_SIZE=1 \
+    ASR_MAX_CHUNK_SEC=30
+
+# Copy application source and model license notices
+COPY pipeline.py app.py pyproject.toml README.md MODEL_LICENSES.md /app/
 COPY tests /app/tests
 
 # Prepare writable cache directory and switch to nonroot user

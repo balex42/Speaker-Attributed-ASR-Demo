@@ -73,13 +73,12 @@ podman build -t nemo-diarization-demo -f Containerfile .
 
 ### 2. Run the Web UI Container
 
-Use a named Podman volume (`nemo-cache:/cache`)—Podman creates it automatically so you don't need to pre-create a host directory, and the downloaded `nvidia/Nemotron-3-Diarization` and `nvidia/parakeet-tdt-0.6b-v3` weights persist across runs:
+Both `nvidia/Nemotron-3-Diarization` and `nvidia/parakeet-tdt-0.6b-v3` are baked directly into `/app/models/huggingface` inside the image during build, so no volume mount or runtime download is required:
 
 ```bash
 # CPU mode
 podman run --rm -it \
   -p 7860:7860 \
-  -v nemo-cache:/cache \
   nemo-diarization-demo
 
 # NVIDIA GPU mode (via CDI)
@@ -87,7 +86,6 @@ podman run --rm -it \
   --device nvidia.com/gpu=all \
   --security-opt=label=disable \
   -p 7860:7860 \
-  -v nemo-cache:/cache \
   nemo-diarization-demo
 ```
 
@@ -97,7 +95,6 @@ Then open **http://127.0.0.1:7860** in your browser.
 
 ```bash
 podman run --rm -it \
-  -v nemo-cache:/cache \
   -v "$(pwd)":/data:Z \
   nemo-diarization-demo \
   --audio /data/conversation.wav --output-dir /data/outputs

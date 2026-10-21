@@ -13,6 +13,7 @@ from pipeline import (
     ASR_MODEL_ID,
     DIARIZATION_MODEL_ID,
     DIARIZATION_PRESETS,
+    SUPPORTED_ASR_LANGUAGES,
     DiarizationASRPipeline,
     PipelineResult,
     format_segments_as_rttm,
@@ -56,21 +57,21 @@ def render_visual_report(result: PipelineResult) -> str:
     rtf = result.processing_time / total_dur if total_dur > 0 else 0.0
     summary_html = f"""
     <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px;font-family:system-ui,-apple-system,sans-serif;">
-      <div style="flex:1;min-width:140px;background:#111827;color:#f9fafb;padding:12px 16px;border-radius:10px;">
-        <div style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">Audio Duration</div>
-        <div style="font-size:20px;font-weight:700;margin-top:2px;">{format_timestamp(result.audio_duration)} ({result.audio_duration:.1f}s)</div>
+      <div style="flex:1;min-width:140px;background:#f9fafb;border:1px solid #e5e7eb;padding:12px 16px;border-radius:10px;">
+        <div style="font-size:12px;font-weight:600;color:#4b5563;text-transform:uppercase;letter-spacing:0.04em;">Audio Duration</div>
+        <div style="font-size:20px;font-weight:700;margin-top:2px;color:#111827;">{format_timestamp(result.audio_duration)} ({result.audio_duration:.1f}s)</div>
       </div>
-      <div style="flex:1;min-width:140px;background:#111827;color:#f9fafb;padding:12px 16px;border-radius:10px;">
-        <div style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">Speakers Detected</div>
-        <div style="font-size:20px;font-weight:700;margin-top:2px;color:#76b900;">{len(speakers)}</div>
+      <div style="flex:1;min-width:140px;background:#f9fafb;border:1px solid #e5e7eb;padding:12px 16px;border-radius:10px;">
+        <div style="font-size:12px;font-weight:600;color:#4b5563;text-transform:uppercase;letter-spacing:0.04em;">Speakers Detected</div>
+        <div style="font-size:20px;font-weight:700;margin-top:2px;color:#4d7c0f;">{len(speakers)}</div>
       </div>
-      <div style="flex:1;min-width:140px;background:#111827;color:#f9fafb;padding:12px 16px;border-radius:10px;">
-        <div style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">Total Words</div>
-        <div style="font-size:20px;font-weight:700;margin-top:2px;">{len(result.words)}</div>
+      <div style="flex:1;min-width:140px;background:#f9fafb;border:1px solid #e5e7eb;padding:12px 16px;border-radius:10px;">
+        <div style="font-size:12px;font-weight:600;color:#4b5563;text-transform:uppercase;letter-spacing:0.04em;">Total Words</div>
+        <div style="font-size:20px;font-weight:700;margin-top:2px;color:#111827;">{len(result.words)}</div>
       </div>
-      <div style="flex:1;min-width:140px;background:#111827;color:#f9fafb;padding:12px 16px;border-radius:10px;">
-        <div style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.04em;">Inference Time</div>
-        <div style="font-size:20px;font-weight:700;margin-top:2px;">{result.processing_time:.2f}s <span style="font-size:13px;font-weight:400;color:#9ca3af;">(RTF {rtf:.2f}x)</span></div>
+      <div style="flex:1;min-width:140px;background:#f9fafb;border:1px solid #e5e7eb;padding:12px 16px;border-radius:10px;">
+        <div style="font-size:12px;font-weight:600;color:#4b5563;text-transform:uppercase;letter-spacing:0.04em;">Inference Time</div>
+        <div style="font-size:20px;font-weight:700;margin-top:2px;color:#111827;">{result.processing_time:.2f}s <span style="font-size:13px;font-weight:500;color:#4b5563;">(RTF {rtf:.2f}x)</span></div>
       </div>
     </div>
     """
@@ -154,7 +155,7 @@ def render_visual_report(result: PipelineResult) -> str:
     transcript_section = f"""
     <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;font-family:system-ui,-apple-system,sans-serif;">
       <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:12px;">
-        Speaker-Attributed Transcript (Parakeet-TDT-0.6B-v3 + Nemotron-3-Diarization)
+        Speaker-Attributed Transcript (Canary-1B-v2 + Nemotron-3-Diarization)
       </div>
       {''.join(turn_cards) if turn_cards else '<div style="color:#6b7280;font-size:14px;">No speech transcribed.</div>'}
     </div>
@@ -168,21 +169,35 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
     import gradio as gr
 
     preset_choices = [(v["label"], k) for k, v in DIARIZATION_PRESETS.items()]
+    default_language = os.environ.get("ASR_LANGUAGE", "de")
+    default_batch_size = max(1, int(os.environ.get("ASR_BATCH_SIZE", "1")))
+    default_max_chunk_sec = float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0"))
 
     def run_inference(
         audio_path: str | None,
+        language: str,
         preset_key: str,
+        batch_size: int,
+        max_chunk_sec: float,
         merge_gap_threshold: float,
         nearest_tolerance: float,
+        progress: gr.Progress = gr.Progress(track_tqdm=False),
     ):
         if not audio_path:
             raise gr.Error("Please upload an audio file or record from your microphone first.")
 
+        def update_progress(fraction: float, desc: str) -> None:
+            progress(fraction, desc=desc)
+
         result = pipeline.process_audio(
             audio_path=audio_path,
             preset_key=preset_key,
+            language=(language or default_language).strip(),
             nearest_tolerance=float(nearest_tolerance),
             merge_gap_threshold=float(merge_gap_threshold),
+            max_chunk_sec=float(max_chunk_sec),
+            batch_size=max(1, int(batch_size)),
+            progress_callback=update_progress,
         )
 
         visual_html = render_visual_report(result)
@@ -226,13 +241,13 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
         )
 
     with gr.Blocks(
-        title="NVIDIA Nemotron-3-Diarization + Parakeet-TDT-0.6B-v3 Demo",
+        title="NVIDIA Nemotron-3-Diarization + Canary-1B-v2 Demo",
     ) as demo:
         gr.Markdown(
             f"""
             # Speaker-Attributed ASR Demo
             ### Powered by [`{DIARIZATION_MODEL_ID}`](https://huggingface.co/{DIARIZATION_MODEL_ID}) + [`{ASR_MODEL_ID}`](https://huggingface.co/{ASR_MODEL_ID})
-            Upload an audio file or record directly from your microphone to run **end-to-end Sortformer speaker diarization** (up to 8 speakers with overlap detection) aligned with **multilingual FastConformer-TDT word-level timestamps**.
+            Upload an audio file or record directly from your microphone to run **end-to-end Sortformer speaker diarization** (up to 8 speakers with overlap detection) aligned with **language-locked Canary-1B-v2 word-level timestamps**.
             """
         )
 
@@ -243,18 +258,41 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
                     type="filepath",
                     label="Input Audio (File Upload or Microphone)",
                 )
+                language_dropdown = gr.Dropdown(
+                    choices=SUPPORTED_ASR_LANGUAGES,
+                    value=default_language,
+                    allow_custom_value=True,
+                    label="ASR Spoken Language (nvidia/canary-1b-v2)",
+                    info="Explicitly locks source & target language (e.g. 'de' for German) so English loanwords are never translated into English.",
+                )
                 preset_dropdown = gr.Dropdown(
                     choices=preset_choices,
                     value="offline_high_accuracy",
                     label="Nemotron-3-Diarization Latency / Context Mode",
                     info="Offline mode uses a 30.4s window for maximum accuracy; streaming modes simulate low-latency chunked inference.",
                 )
-                with gr.Accordion("Alignment Settings", open=False):
+                with gr.Accordion("Chunking & Alignment Settings", open=False):
+                    batch_size_slider = gr.Slider(
+                        minimum=1,
+                        maximum=16,
+                        value=default_batch_size,
+                        step=1,
+                        label="ASR Batch Size (chunks per pass)",
+                        info="Default 1 minimizes peak RAM on CPU and prevents padding waste; increase to 4–8 on GPU for faster throughput.",
+                    )
+                    chunk_sec_slider = gr.Slider(
+                        minimum=10.0,
+                        maximum=120.0,
+                        value=default_max_chunk_sec,
+                        step=5.0,
+                        label="ASR Max Chunk Duration (seconds)",
+                        info="Splits long audio at silence gaps between diarization segments for faster CPU inference and per-chunk progress.",
+                    )
                     merge_gap_slider = gr.Slider(
-                        minimum=0.1,
-                        maximum=5.0,
-                        value=1.2,
-                        step=0.1,
+                        minimum=0.5,
+                        maximum=10.0,
+                        value=4.0,
+                        step=0.5,
                         label="Same-Speaker Turn Merge Threshold (seconds)",
                         info="Maximum silence gap between words of the same speaker before splitting into a new turn.",
                     )
@@ -303,7 +341,15 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
 
         run_btn.click(
             fn=run_inference,
-            inputs=[audio_input, preset_dropdown, merge_gap_slider, tolerance_slider],
+            inputs=[
+                audio_input,
+                language_dropdown,
+                preset_dropdown,
+                batch_size_slider,
+                chunk_sec_slider,
+                merge_gap_slider,
+                tolerance_slider,
+            ],
             outputs=[
                 visual_output,
                 stats_table,
@@ -320,13 +366,31 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="NVIDIA Nemotron-3-Diarization + Parakeet-TDT-0.6B-v3 Demo"
+        description="NVIDIA Nemotron-3-Diarization + Canary-1B-v2 Demo"
     )
     parser.add_argument(
         "--audio",
         type=str,
         default=None,
         help="Optional path to an audio file for CLI batch mode (if omitted, launches the Gradio Web UI).",
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default=os.environ.get("ASR_LANGUAGE", "de"),
+        help="Spoken language ISO code for nvidia/canary-1b-v2 (default: ASR_LANGUAGE env or 'de').",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=int(os.environ.get("ASR_BATCH_SIZE", "1")),
+        help="ASR batch size for Canary chunk transcription (default: ASR_BATCH_SIZE env or 1).",
+    )
+    parser.add_argument(
+        "--max-chunk-sec",
+        type=float,
+        default=float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0")),
+        help="Maximum ASR chunk duration in seconds (default: ASR_MAX_CHUNK_SEC env or 30.0).",
     )
     parser.add_argument(
         "--preset",
@@ -371,6 +435,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Propagate CLI flags to environment so build_gradio_app picks them up as UI defaults
+    os.environ["ASR_LANGUAGE"] = args.language
+    os.environ["ASR_BATCH_SIZE"] = str(max(1, args.batch_size))
+    os.environ["ASR_MAX_CHUNK_SEC"] = str(args.max_chunk_sec)
+
     pipeline = DiarizationASRPipeline(device=args.device)
 
     if args.audio:
@@ -378,7 +447,13 @@ def main() -> None:
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        result = pipeline.process_audio(audio_path=audio_path, preset_key=args.preset)
+        result = pipeline.process_audio(
+            audio_path=audio_path,
+            preset_key=args.preset,
+            language=args.language,
+            max_chunk_sec=args.max_chunk_sec,
+            batch_size=max(1, args.batch_size),
+        )
         md_text = format_turns_as_markdown(result.turns)
         print("\n=== Speaker-Attributed Transcript ===\n")
         print(md_text)
