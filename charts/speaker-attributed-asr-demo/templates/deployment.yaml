@@ -38,24 +38,6 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          args:
-            - "--host"
-            - "0.0.0.0"
-            - "--port"
-            - "7860"
-            - "--language"
-            - {{ .Values.app.language | default "de" | quote }}
-            - "--batch-size"
-            - {{ .Values.app.batchSize | default 1 | toString | quote }}
-            - "--max-chunk-sec"
-            - {{ .Values.app.maxChunkSec | default 30 | toString | quote }}
-            {{- if .Values.app.preloadModels }}
-            - "--preload"
-            {{- end }}
-            {{- if .Values.app.device }}
-            - "--device"
-            - {{ .Values.app.device | quote }}
-            {{- end }}
           env:
             - name: GRADIO_SERVER_NAME
               value: "0.0.0.0"
@@ -67,6 +49,14 @@ spec:
               value: {{ .Values.app.batchSize | default 1 | toString | quote }}
             - name: ASR_MAX_CHUNK_SEC
               value: {{ .Values.app.maxChunkSec | default 30 | toString | quote }}
+            - name: DIARIZATION_PRESET
+              value: {{ .Values.app.diarizationPreset | default "offline_high_accuracy" | quote }}
+            - name: PRELOAD_MODELS
+              value: {{ .Values.app.preloadModels | default false | toString | quote }}
+            {{- if .Values.app.device }}
+            - name: ASR_DEVICE
+              value: {{ .Values.app.device | quote }}
+            {{- end }}
             - name: HF_HOME
               value: {{ if .Values.persistence.enabled }}"/cache/huggingface"{{ else }}"/app/models/huggingface"{{ end }}
             - name: TORCH_HOME

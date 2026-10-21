@@ -168,17 +168,20 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
     """Create the interactive Gradio Blocks application."""
     import gradio as gr
 
-    preset_choices = [(v["label"], k) for k, v in DIARIZATION_PRESETS.items()]
     default_language = os.environ.get("ASR_LANGUAGE", "de")
-    default_batch_size = max(1, int(os.environ.get("ASR_BATCH_SIZE", "1")))
-    default_max_chunk_sec = float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0"))
+    env_preset = os.environ.get("DIARIZATION_PRESET", "offline_high_accuracy")
+    if env_preset not in DIARIZATION_PRESETS:
+        logger.warning(
+            "Unknown DIARIZATION_PRESET=%r; falling back to 'offline_high_accuracy'",
+            env_preset,
+        )
+        env_preset = "offline_high_accuracy"
+    env_batch_size = max(1, int(os.environ.get("ASR_BATCH_SIZE", "1")))
+    env_max_chunk_sec = max(5.0, float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0")))
 
     def run_inference(
         audio_path: str | None,
         language: str,
-        preset_key: str,
-        batch_size: int,
-        max_chunk_sec: float,
         merge_gap_threshold: float,
         nearest_tolerance: float,
         progress: gr.Progress = gr.Progress(track_tqdm=False),
@@ -191,12 +194,12 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
 
         result = pipeline.process_audio(
             audio_path=audio_path,
-            preset_key=preset_key,
+            preset_key=env_preset,
             language=(language or default_language).strip(),
             nearest_tolerance=float(nearest_tolerance),
             merge_gap_threshold=float(merge_gap_threshold),
-            max_chunk_sec=float(max_chunk_sec),
-            batch_size=max(1, int(batch_size)),
+            max_chunk_sec=env_max_chunk_sec,
+            batch_size=env_batch_size,
             progress_callback=update_progress,
         )
 
@@ -265,29 +268,7 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
                     label="ASR Spoken Language (nvidia/canary-1b-v2)",
                     info="Explicitly locks source & target language (e.g. 'de' for German) so English loanwords are never translated into English.",
                 )
-                preset_dropdown = gr.Dropdown(
-                    choices=preset_choices,
-                    value="offline_high_accuracy",
-                    label="Nemotron-3-Diarization Latency / Context Mode",
-                    info="Offline mode uses a 30.4s window for maximum accuracy; streaming modes simulate low-latency chunked inference.",
-                )
-                with gr.Accordion("Chunking & Alignment Settings", open=False):
-                    batch_size_slider = gr.Slider(
-                        minimum=1,
-                        maximum=16,
-                        value=default_batch_size,
-                        step=1,
-                        label="ASR Batch Size (chunks per pass)",
-                        info="Default 1 minimizes peak RAM on CPU and prevents padding waste; increase to 4–8 on GPU for faster throughput.",
-                    )
-                    chunk_sec_slider = gr.Slider(
-                        minimum=10.0,
-                        maximum=120.0,
-                        value=default_max_chunk_sec,
-                        step=5.0,
-                        label="ASR Max Chunk Duration (seconds)",
-                        info="Splits long audio at silence gaps between diarization segments for faster CPU inference and per-chunk progress.",
-                    )
+                with gr.Accordion("Transcript Alignment Settings", open=False):
                     merge_gap_slider = gr.Slider(
                         minimum=0.5,
                         maximum=10.0,
@@ -344,9 +325,6 @@ def build_gradio_app(pipeline: DiarizationASRPipeline):
             inputs=[
                 audio_input,
                 language_dropdown,
-                preset_dropdown,
-                batch_size_slider,
-                chunk_sec_slider,
                 merge_gap_slider,
                 tolerance_slider,
             ],
@@ -381,66 +359,42 @@ def main() -> None:
         help="Spoken language ISO code for nvidia/canary-1b-v2 (default: ASR_LANGUAGE env or 'de').",
     )
     parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=int(os.environ.get("ASR_BATCH_SIZE", "1")),
-        help="ASR batch size for Canary chunk transcription (default: ASR_BATCH_SIZE env or 1).",
-    )
-    parser.add_argument(
-        "--max-chunk-sec",
-        type=float,
-        default=float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0")),
-        help="Maximum ASR chunk duration in seconds (default: ASR_MAX_CHUNK_SEC env or 30.0).",
-    )
-    parser.add_argument(
-        "--preset",
-        type=str,
-        default="offline_high_accuracy",
-        choices=list(DIARIZATION_PRESETS.keys()),
-        help="Sortformer diarization latency preset.",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
         help="Directory to write .md, .srt, .rttm, and .json outputs when running in CLI mode.",
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        help="Torch device override (e.g. 'cuda', 'cpu'). Defaults to auto-detection.",
-    )
-    parser.add_argument(
         "--host",
         type=str,
         default=os.environ.get("GRADIO_SERVER_NAME", "127.0.0.1"),
-        help="Gradio server host address (default: 127.0.0.1).",
+        help="Gradio server host address (default: GRADIO_SERVER_NAME env or 127.0.0.1).",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=int(os.environ.get("GRADIO_SERVER_PORT", "7860")),
-        help="Gradio server port (default: 7860).",
+        help="Gradio server port (default: GRADIO_SERVER_PORT env or 7860).",
     )
     parser.add_argument(
         "--share",
         action="store_true",
         help="Create a public Gradio share link.",
     )
-    parser.add_argument(
-        "--preload",
-        action="store_true",
-        help="Preload NeMo models at startup instead of on first request.",
-    )
     args = parser.parse_args()
 
-    # Propagate CLI flags to environment so build_gradio_app picks them up as UI defaults
     os.environ["ASR_LANGUAGE"] = args.language
-    os.environ["ASR_BATCH_SIZE"] = str(max(1, args.batch_size))
-    os.environ["ASR_MAX_CHUNK_SEC"] = str(args.max_chunk_sec)
 
-    pipeline = DiarizationASRPipeline(device=args.device)
+    # Performance and hardware settings are configured strictly via environment variables
+    device = os.environ.get("ASR_DEVICE", "").strip() or None
+    preset_key = os.environ.get("DIARIZATION_PRESET", "offline_high_accuracy").strip()
+    if preset_key not in DIARIZATION_PRESETS:
+        preset_key = "offline_high_accuracy"
+    batch_size = max(1, int(os.environ.get("ASR_BATCH_SIZE", "1")))
+    max_chunk_sec = max(5.0, float(os.environ.get("ASR_MAX_CHUNK_SEC", "30.0")))
+    preload = os.environ.get("PRELOAD_MODELS", "false").strip().lower() in ("1", "true", "yes")
+
+    pipeline = DiarizationASRPipeline(device=device)
 
     if args.audio:
         audio_path = Path(args.audio)
@@ -449,10 +403,10 @@ def main() -> None:
 
         result = pipeline.process_audio(
             audio_path=audio_path,
-            preset_key=args.preset,
+            preset_key=preset_key,
             language=args.language,
-            max_chunk_sec=args.max_chunk_sec,
-            batch_size=max(1, args.batch_size),
+            max_chunk_sec=max_chunk_sec,
+            batch_size=batch_size,
         )
         md_text = format_turns_as_markdown(result.turns)
         print("\n=== Speaker-Attributed Transcript ===\n")
@@ -474,7 +428,7 @@ def main() -> None:
             logger.info("Saved outputs to %s", out_dir)
         return
 
-    if args.preload:
+    if preload:
         pipeline.load_models()
 
     demo = build_gradio_app(pipeline)

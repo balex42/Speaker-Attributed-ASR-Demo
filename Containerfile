@@ -61,7 +61,9 @@ LABEL org.opencontainers.image.licenses="Apache-2.0 AND OpenMDW-1.1 AND CC-BY-4.
 
 ENV ASR_LANGUAGE=de \
     ASR_BATCH_SIZE=1 \
-    ASR_MAX_CHUNK_SEC=30
+    ASR_MAX_CHUNK_SEC=30 \
+    DIARIZATION_PRESET=offline_high_accuracy \
+    PRELOAD_MODELS=false
 
 # Copy application source and model license notices
 COPY pipeline.py app.py pyproject.toml README.md MODEL_LICENSES.md /app/

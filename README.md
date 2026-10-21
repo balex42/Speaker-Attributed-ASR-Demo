@@ -14,10 +14,10 @@ An interactive Web UI (Gradio) and CLI tool that combines **end-to-end speaker d
 - **Long-Audio Memory Safety**:
   - Streams audio conversion to 16 kHz mono PCM directly on disk via `ffmpeg` (`preprocess_audio`) without loading multi-gigabyte uncompressed waveforms into RAM.
   - Automatically diarizes long recordings (> 8 minutes) in bounded 8-minute windows with a 20-second overlap and speaker-permutation stitching (`stitch_diarization_window`), avoiding unbounded CPU `flex_attention` memory growth.
-  - Splits audio at silence gaps between speaker segments (`compute_asr_chunk_windows`) and streams chunk slices directly from disk with configurable **ASR Batch Size** (default `1` on CPU, scalable up to `16` on GPU).
+  - Splits audio at silence gaps between speaker segments (`compute_asr_chunk_windows`) and streams chunk slices directly from disk.
+  - Performance and memory-sensitive parameters (`ASR_BATCH_SIZE`, `ASR_MAX_CHUNK_SEC`, `DIARIZATION_PRESET`, `ASR_DEVICE`, `PRELOAD_MODELS`) are locked to environment variables so Web UI users cannot trigger out-of-memory errors.
 - **Word-to-Speaker Temporal Alignment**: Matches every word's `[start, end]` span from `canary-1b-v2` against active speaker intervals from `Nemotron-3-Diarization` via maximum temporal overlap, sentence-boundary turn smoothing, and configurable nearest-speaker fallback.
 - **Multi-Track Speaker Timeline**: High-contrast dark-themed swimlane chart showing each speaker's activity intervals and overlapping speech across the audio duration.
-- **Sortformer Context Presets**: Switch between **Offline High Accuracy** (`30.4s` window), **Streaming Balanced** (`~2.5s` latency), and **Streaming Low Latency** (`~0.32s` latency).
 - **Rich Exports**: View and download **Markdown**, **SRT Subtitles (`.srt`)**, **NIST RTTM (`.rttm`)**, and **Full JSON (`.json`)**.
 
 ---
@@ -53,18 +53,20 @@ python app.py
 
 Then open **http://127.0.0.1:7860** in your browser.
 
-#### CLI Flags & Environment Variables
+#### Environment Variables (Performance & Runtime Configuration)
 
-| CLI Flag | Environment Variable | Default | Description |
+Performance and hardware settings are configured strictly via environment variables (and Helm values) so end users cannot change them in the Web UI:
+
+| Environment Variable | Helm Value | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--language` | `ASR_LANGUAGE` | `de` | Spoken language ISO code (`de`, `en`, `fr`, `es`, `it`, `nl`, `pl`, `pt`, `uk`, etc.) |
-| `--batch-size` | `ASR_BATCH_SIZE` | `1` | Number of audio chunks transcribed per pass (`1` minimizes CPU RAM; `4`–`8` speeds up GPU inference) |
-| `--max-chunk-sec` | `ASR_MAX_CHUNK_SEC` | `30.0` | Maximum ASR chunk duration (seconds) before splitting at silence gaps |
-| `--preset` | — | `offline_high_accuracy` | Sortformer preset (`offline_high_accuracy`, `streaming_balanced`, `streaming_low_latency`) |
-| `--preload` | — | `false` | Load both Hugging Face models into memory at startup instead of on first request |
-| `--device` | — | auto | Torch device override (`cuda` or `cpu`) |
-| `--host` | `GRADIO_SERVER_NAME` | `127.0.0.1` | Gradio server bind address |
-| `--port` | `GRADIO_SERVER_PORT` | `7860` | Gradio server port |
+| `ASR_LANGUAGE` | `app.language` | `de` | Default spoken language ISO code in the UI dropdown (`de`, `en`, `fr`, `es`, `it`, `nl`, `pl`, `pt`, `uk`, etc.) |
+| `ASR_BATCH_SIZE` | `app.batchSize` | `1` | Number of audio chunks transcribed per pass (`1` minimizes CPU RAM; `4`–`8` speeds up GPU inference) |
+| `ASR_MAX_CHUNK_SEC` | `app.maxChunkSec` | `30` | Maximum ASR chunk duration (seconds) before splitting at silence gaps |
+| `DIARIZATION_PRESET` | `app.diarizationPreset` | `offline_high_accuracy` | Sortformer preset (`offline_high_accuracy`, `streaming_balanced`, `streaming_low_latency`) |
+| `PRELOAD_MODELS` | `app.preloadModels` | `false` | Load both Hugging Face models into memory at container startup (`true` / `false`) |
+| `ASR_DEVICE` | `app.device` | `""` (auto) | Torch device override (`cuda` or `cpu`) |
+| `GRADIO_SERVER_NAME` | — | `127.0.0.1` | Gradio server bind address (`0.0.0.0` in container) |
+| `GRADIO_SERVER_PORT` | `service.port` | `7860` | Gradio server port |
 
 ### 3. Run in CLI Batch Mode
 
@@ -74,7 +76,6 @@ Process an audio file directly from the terminal and export `.md`, `.srt`, `.rtt
 python app.py \
   --audio path/to/conversation.wav \
   --language de \
-  --batch-size 1 \
   --output-dir ./outputs
 ```
 
@@ -117,7 +118,6 @@ podman run --rm -it \
   nemo-diarization-demo \
   --audio /data/conversation.wav \
   --language de \
-  --batch-size 1 \
   --output-dir /data/outputs
 ```
 

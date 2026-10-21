@@ -9,17 +9,19 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Application runtime options passed to app.py
+# Application runtime options passed as environment variables to app.py
 app:
-  # Set to true to load both baked Hugging Face models at container startup
+  # Set to true to load both baked Hugging Face models at container startup (PRELOAD_MODELS)
   preloadModels: false
-  # Default spoken language ISO code for nvidia/canary-1b-v2 (e.g. "de", "en", "fr", "es")
+  # Default spoken language ISO code for nvidia/canary-1b-v2 (ASR_LANGUAGE, e.g. "de", "en", "fr", "es")
   language: "de"
-  # Default ASR batch size (chunks per inference pass; 1 minimizes CPU RAM usage)
+  # ASR batch size (chunks per inference pass; 1 minimizes CPU RAM usage) (ASR_BATCH_SIZE)
   batchSize: 1
-  # Maximum ASR chunk duration in seconds before splitting at silence gaps
+  # Maximum ASR chunk duration in seconds before splitting at silence gaps (ASR_MAX_CHUNK_SEC)
   maxChunkSec: 30
-  # Optional explicit device override ("cuda" or "cpu"); leave empty for auto-detection
+  # Sortformer diarization preset ("offline_high_accuracy", "streaming_balanced", "streaming_low_latency") (DIARIZATION_PRESET)
+  diarizationPreset: "offline_high_accuracy"
+  # Optional explicit device override ("cuda" or "cpu"); leave empty for auto-detection (ASR_DEVICE)
   device: ""
   # Optional Hugging Face token secret reference for higher rate limits
   hfTokenSecret:
