@@ -1,7 +1,7 @@
 [project]
-name = "nemotron-parakeet-diarization-demo"
+name = "nemotron-canary-diarization-demo"
 version = "0.1.0"
-description = "Speaker-attributed ASR demo combining nvidia/Nemotron-3-Diarization and nvidia/parakeet-tdt-0.6b-v3"
+description = "Speaker-attributed ASR demo combining nvidia/Nemotron-3-Diarization and nvidia/canary-1b-v2"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
