@@ -1,0 +1,46 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local configuration
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Packaging and editor files
+build/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+.DS_Store
+
+# Downloaded models and ML caches
+models/
+.cache/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# Generated audio, transcripts, and temporary outputs
+outputs/
+output/
+tmp/
+temp/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+
+# Helm packaging
+charts/**/*.tgz
